@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BillFlow – Budget Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #0e0f13;
+  --surface: #16181f;
+  --surface2: #1e2029;
+  --border: #2a2d3a;
+  --accent-in: #00e5a0;
+  --accent-out: #ff4f6d;
+  --accent-in-dim: rgba(0,229,160,0.1);
+  --accent-out-dim: rgba(255,79,109,0.1);
+  --text: #f0f1f5;
+  --muted: #6b7080;
+  --muted2: #3a3d4d;
+  --highlight: #ffd166;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  padding-bottom: 60px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo { font-family: 'Syne', sans-serif; font-weight: 800; }
+.logo span { color: var(--accent-in); }
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 16px;
+  padding: 20px 40px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.progress-wrap { padding: 0 40px 20px; }
+
+.progress-track {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 999px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg,var(--accent-in),var(--highlight),var(--accent-out));
+}
+
+.insights {
+  margin: 0 40px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.insights-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 0 40px;
+}
+
+button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 100px 80px;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+</style>
+</head>
+<body>
+
+<header>
+<div class="logo">Bill<span>Flow</span></div>
+<div id="month"></div>
+</header>
+
+<div class="summary">
+<div class="card"><div>Total Income</div><div id="total-in">£0</div></div>
+<div class="card"><div>Total Out</div><div id="total-out">£0</div></div>
+<div class="card"><div>Balance</div><div id="balance">£0</div></div>
+</div>
+
+<div class="progress-wrap">
+<div class="progress-track"><div id="bar" class="progress-fill"></div></div>
+<div id="ratio"></div>
+</div>
+
+<div class="insights">
+<div class="insights-title">Smart Insights</div>
+<ul id="insights-list"></ul>
+</div>
+
+<div class="tables">
+<div>
+<button onclick="addRow('in')">+ Income</button>
+<div id="in-list"></div>
+</div>
+<div>
+<button onclick="addRow('out')">+ Expense</button>
+<div id="out-list"></div>
+</div>
+</div>
+
+<script>
+let inRows = JSON.parse(localStorage.getItem('inRows')||'[]');
+let outRows = JSON.parse(localStorage.getItem('outRows')||'[]');
+
+function save(){
+  localStorage.setItem('inRows',JSON.stringify(inRows));
+  localStorage.setItem('outRows',JSON.stringify(outRows));
+}
+
+function addRow(type){
+  const obj={name:'',amount:0};
+  if(type==='in') inRows.push(obj);
+  else outRows.push(obj);
+  save();
+  render();
+}
+
+function sum(arr){return arr.reduce((s,r)=>s+Number(r.amount||0),0);}
+
+function generateInsights(totalIn,totalOut){
+  const insights=[];
+  const ratio = totalIn? (totalOut/totalIn)*100:0;
+
+  if(ratio>85) insights.push('⚠️ You are spending over 85% of income');
+  if(totalOut>totalIn) insights.push('🚨 You are overspending');
+  if(ratio<60 && totalIn>0) insights.push('✅ Healthy spending level');
+
+  return insights;
+}
+
+function updateTotalsOnly(){
+  const totalIn=sum(inRows);
+  const totalOut=sum(outRows);
+  const balance=totalIn-totalOut;
+  const ratio = totalIn? (totalOut/totalIn)*100:0;
+
+  document.getElementById('total-in').innerText='£'+totalIn.toFixed(2);
+  document.getElementById('total-out').innerText='£'+totalOut.toFixed(2);
+  document.getElementById('balance').innerText='£'+balance.toFixed(2);
+
+  document.getElementById('bar').style.width=ratio+'%';
+  document.getElementById('ratio').innerText=ratio.toFixed(0)+'% spent';
+
+  const list=document.getElementById('insights-list');
+  list.innerHTML='';
+  generateInsights(totalIn,totalOut).forEach(i=>{
+    const li=document.createElement('li');
+    li.innerText=i;
+    list.appendChild(li);
+  });
+}
+
+function renderList(rows,el){
+  el.innerHTML='';
+  rows.forEach((r,i)=>{
+    const div=document.createElement('div');
+    div.className='row';
+
+    const name=document.createElement('input');
+    name.value=r.name;
+    name.placeholder='Name';
+
+    name.oninput=()=>{
+      r.name=name.value;
+      save();
+      updateTotalsOnly();
+    };
+
+    const amount=document.createElement('input');
+    amount.type='number';
+    amount.value=r.amount;
+
+    amount.oninput=()=>{
+      r.amount=amount.value;
+      save();
+      updateTotalsOnly();
+    };
+
+    const del=document.createElement('button');
+    del.innerText='x';
+    del.onclick=()=>{
+      rows.splice(i,1);
+      save();
+      render();
+    };
+
+    div.append(name,amount,del);
+    el.appendChild(div);
+  });
+}
+
+function render(){
+  renderList(inRows,document.getElementById('in-list'));
+  renderList(outRows,document.getElementById('out-list'));
+  updateTotalsOnly();
+}
+
+render();
+</script>
+
+</body>
+</html>
